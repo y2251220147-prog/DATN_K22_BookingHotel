@@ -1,0 +1,218 @@
+import redisClient from "../repositories/redisClient.js";
+import axios from "axios";
+import {
+  addImageToRoomRepo,
+  createRoomRepo,
+  deletedRoomRepo,
+  deleteImageToRoomRepo,
+  findBookedDateRangesRepo,
+  findRoomForSeason,
+  findRoomNumber,
+  getAllRoomRepo,
+  getRoomCustomerRepo,
+  getRoomIdRepo,
+  getRoomsByRoomTypeIdRepo,
+  updateRoomRepo,
+  getRecommendedRoomsRepo,
+  getRoomFeaturesRepo,
+} from "../repositories/room.repo.js";
+
+export async function createRoomService(data) {
+  const newRoom = await createRoomRepo(data);
+  return newRoom;
+}
+
+export async function getAllRoomService(
+  checkIn,
+  checkOut,
+  customer,
+  status,
+  roomType,
+  search,
+  page,
+  limit,
+) {
+  const skip = (page - 1) * limit;
+  const take = limit;
+  const roomtypeArray = roomType
+    ? Array.isArray(roomType)
+      ? roomType
+      : [roomType]
+    : [];
+
+  const { data, total } = await getAllRoomRepo(
+    checkIn,
+    checkOut,
+    customer,
+    status,
+    roomtypeArray,
+    search,
+    skip,
+    take,
+  );
+  return {
+    data,
+    pagination: {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+}
+
+export async function deleteRoomService(id) {
+  const deletedRoom = await deletedRoomRepo(id);
+  return deletedRoom;
+}
+
+export async function updateRoomService(id, data) {
+  if (data.roomNumber) {
+    const findRoom = await findRoomNumber(data.roomNumber);
+    if (findRoom && findRoom.id !== id) {
+      throw new Error("Số Phòng Đã Tồn Tại ");
+    }
+  }
+  const updatedRoom = await updateRoomRepo(id, data);
+  return updatedRoom;
+}
+
+export async function deleteImageToRoomService(id) {
+  const deletedImage = await deleteImageToRoomRepo(id);
+  return deletedImage;
+}
+
+export async function addRoomImageService({ roomId, imageUrls }) {
+  const addedImage = await addImageToRoomRepo({ roomId, imageUrls });
+  return addedImage;
+}
+
+export async function getRoomCustomerService(
+  checkIn,
+  checkOut,
+  customer,
+  roomType,
+) {
+  const getRoomCustomer = await getRoomCustomerRepo(
+    checkIn,
+    checkOut,
+    customer,
+    roomType,
+  );
+  return getRoomCustomer;
+}
+
+export async function getRoomsByRoomTypeIdService(id) {
+  const cacheKey = `roomType:${id}`;
+  try {
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      console.log("🚀 [REDIS]: Lấy từ Cache Cloud");
+      return JSON.parse(cachedData);
+    }
+  } catch (error) {
+    console.error("❌ Error fetching cached data:", error);
+  }
+  const roomType = await getRoomsByRoomTypeIdRepo(id);
+
+  if (!roomType) throw new Error("Không tìm thấy loại phòng.");
+  try {
+    await redisClient.setEx(cacheKey, 3600, JSON.stringify(roomType));
+  } catch (err) {
+    console.error("⚠️ Không thể lưu Cache:", err.message);
+  }
+  return roomType;
+}
+
+export async function getRoomByIdService(id) {
+  const room = await getRoomIdRepo(id);
+  return room;
+}
+
+export async function getBookedDatesService(roomId) {
+  const bookings = await findBookedDateRangesRepo(roomId);
+  function formatDateToLocal(dateString) {
+    const date = new Date(dateString);
+    date.setHours(date.getHours() + 7);
+    return date.toISOString().split("T")[0];
+  }
+
+  return bookings.map((booking) => ({
+    start: formatDateToLocal(booking.checkInDate),
+    end: formatDateToLocal(booking.checkOutDate),
+    status: booking.status,
+  }));
+}
+
+export async function calculatePriceRoomService(
+  bookingStart,
+  bookingEnd,
+  roomId,
+) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const start = bookingStart ? new Date(bookingStart) : new Date(today);
+  const end = bookingEnd ? new Date(bookingEnd) : new Date(today);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  const room = await findRoomForSeason(start, end, roomId);
+  if (!room) throw new Error("Không tìm thấy phòng.");
+
+  // ✅ Dùng new Date() để tránh mutate object gốc
+  const seasons = room.seasonalRates.map((s) => {
+    const seasonStart = new Date(s.startDate);
+    const seasonEnd = new Date(s.endDate);
+    seasonStart.setHours(0, 0, 0, 0);
+    seasonEnd.setHours(0, 0, 0, 0);
+    return { start: seasonStart, end: seasonEnd };
+  });
+
+  let total = 0;
+
+  // ✅ Khi không có bookingEnd, tính giá cho đúng 1 ngày (today)
+  const loopEnd = bookingEnd ? end : new Date(start.getTime() + 86400000);
+
+  for (let d = new Date(start); d < loopEnd; d.setDate(d.getDate() + 1)) {
+    const day = new Date(d);
+    const isSeasonDay = seasons.some((s) => day >= s.start && day <= s.end);
+    total += isSeasonDay
+      ? Number(room.currentPrice)
+      : Number(room.originalPrice);
+  }
+
+  const bookingSeason = seasons.some((s) => start >= s.start && start <= s.end);
+
+  return {
+    total,
+    currentPrice: Number(room.currentPrice),
+    originalPrice: Number(room.originalPrice),
+    displayPrice: bookingSeason
+      ? Number(room.currentPrice)
+      : Number(room.originalPrice),
+  };
+}
+
+export async function getRecommendedRoomsService(roomIds) {
+  try {
+    const aiResponse = await axios.post("http://localhost:8000/recommend", {
+      roomId: roomIds && roomIds.length > 0 ? roomIds[0] : null,
+    });
+
+    const recommendedIds = aiResponse.data.recommendations;
+    if (recommendedIds && recommendedIds.length > 0) {
+      return await getRecommendedRoomsRepo(recommendedIds);
+    }
+  } catch (error) {
+    console.error("❌ AI Service Error:", error.message);
+    // Nếu AI lỗi, fallback về logic mặc định trong Repo
+  }
+
+  const rooms = await getRecommendedRoomsRepo(roomIds);
+  return rooms;
+}
+
+export async function getRoomFeaturesService() {
+  return await getRoomFeaturesRepo();
+}

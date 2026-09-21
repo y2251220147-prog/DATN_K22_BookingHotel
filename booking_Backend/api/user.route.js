@@ -1,0 +1,60 @@
+import express from "express";
+import signUpController, {
+  loginController,
+  updateUser,
+  getUserController,
+  getAllCustomer,
+  createCustomer,
+  changePassword,
+  forgotPassword,
+  resetPassword,
+  disableUser,
+  refreshToken,
+  createGuest,
+  logout,
+  loginWithFaceController,
+  getFaceDescriptorController,
+  updateFaceDescriptorController,
+  deleteFaceDescriptorController,
+  getFaceStatusController,
+} from "../controller/user.controller.js";
+import { authCustomer } from "../lib/authCustomer.js";
+import { authEmployee } from "../lib/authEmployee.js";
+import { getAuditLog } from "../controller/auditlog.Controller.js";
+
+const routerUser = express.Router();
+
+routerUser.post("/signUp", signUpController);
+routerUser.post("/login", loginController);
+routerUser.post("/createCustomer", authEmployee, createCustomer);
+routerUser.post("/guest", authCustomer, createGuest);
+routerUser.put("/customer/:id", updateUser);
+routerUser.post("/login/face", loginWithFaceController);
+routerUser.post("/login/face/descriptor", getFaceDescriptorController);
+routerUser.post("/user/changePassword", authCustomer, changePassword);
+routerUser.put(
+  "/face-descriptor",
+  authCustomer,
+  updateFaceDescriptorController,
+);
+routerUser.delete(
+  "/face-descriptor",
+  authCustomer,
+  deleteFaceDescriptorController,
+);
+routerUser.get(
+  "/face-descriptor/status",
+  authCustomer,
+  getFaceStatusController,
+);
+routerUser.get("/customer", getAllCustomer);
+routerUser.get("/user", authCustomer, getUserController);
+routerUser.get("/auditlog", authEmployee, getAuditLog);
+routerUser.post("/forgot-password", forgotPassword);
+routerUser.post("/reset-password", resetPassword);
+routerUser.post("/reset-password", resetPassword);
+routerUser.post("/refresh-token", refreshToken);
+routerUser.put("/disabled/:id", authEmployee, disableUser);
+routerUser.get("/logOut", logout);
+
+export default routerUser;

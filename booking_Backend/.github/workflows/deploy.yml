@@ -1,0 +1,90 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          PORT: ${{ secrets.PORT }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLEMAP_API_KEY: ${{ secrets.GOOGLEMAP_API_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          PAYOS_API_KEY: ${{ secrets.PAYOS_API_KEY }}
+          PAYOS_CHECKSUM_KEY: ${{ secrets.PAYOS_CHECKSUM_KEY }}
+          PAYOS_CLIENT_ID: ${{ secrets.PAYOS_CLIENT_ID }}
+          API_KEY_AI: ${{ secrets.API_KEY_AI }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          PUSHER_APP_ID: ${{ secrets.PUSHER_APP_ID }}
+          PUSHER_KEY: ${{ secrets.PUSHER_KEY }}
+          PUSHER_SECRET: ${{ secrets.PUSHER_SECRET }}
+          REFRESH_TOKEN_SECRET: ${{ secrets.REFRESH_TOKEN_SECRET }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          PASSWORD_REDIS: ${{ secrets.PASSWORD_REDIS }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_KEY }}
+          envs: DATABASE_URL,EMAIL_PASS,EMAIL_USER,FRONTEND_URL,BACKEND_URL,PORT,OPENAI_API_KEY,GOOGLEMAP_API_KEY,JWT_SECRET,PAYOS_API_KEY,PAYOS_CHECKSUM_KEY,PAYOS_CLIENT_ID,API_KEY_AI,SESSION_SECRET,PUSHER_APP_ID,PUSHER_KEY,PUSHER_SECRET,REFRESH_TOKEN_SECRET,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,PASSWORD_REDIS
+          script: |
+            cd ~/devops/booking_Backend
+
+            echo "Pull latest code..."
+            git pull origin master
+
+            echo "Remove old container..."
+            docker rm -f bookingbe || true
+
+            echo "Remove old image..."
+            docker rmi admincuong/bookingbe:latest || true
+
+            echo "Build new image..."
+            docker build \
+              --build-arg DATABASE_URL="$DATABASE_URL" \
+              --build-arg EMAIL_PASS="$EMAIL_PASS" \
+              --build-arg EMAIL_USER="$EMAIL_USER" \
+              --build-arg FRONTEND_URL="$FRONTEND_URL" \
+              --build-arg BACKEND_URL="$BACKEND_URL" \
+              --build-arg PORT="$PORT" \
+              --build-arg OPENAI_API_KEY="$OPENAI_API_KEY" \
+              --build-arg GOOGLEMAP_API_KEY="$GOOGLEMAP_API_KEY" \
+              --build-arg JWT_SECRET="$JWT_SECRET" \
+              --build-arg PAYOS_API_KEY="$PAYOS_API_KEY" \
+              --build-arg PAYOS_CHECKSUM_KEY="$PAYOS_CHECKSUM_KEY" \
+              --build-arg PAYOS_CLIENT_ID="$PAYOS_CLIENT_ID" \
+              --build-arg API_KEY_AI="$API_KEY_AI" \
+              --build-arg SESSION_SECRET="$SESSION_SECRET" \
+              --build-arg PUSHER_APP_ID="$PUSHER_APP_ID" \
+              --build-arg PUSHER_KEY="$PUSHER_KEY" \
+              --build-arg PUSHER_SECRET="$PUSHER_SECRET" \
+              --build-arg REFRESH_TOKEN_SECRET="$REFRESH_TOKEN_SECRET" \
+              --build-arg UPSTASH_REDIS_REST_URL="$UPSTASH_REDIS_REST_URL" \
+              --build-arg UPSTASH_REDIS_REST_TOKEN="$UPSTASH_REDIS_REST_TOKEN" \
+              --build-arg GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+              --build-arg GOOGLE_CLIENT_SECRET="$GOOGLE_CLIENT_SECRET" \
+              --build-arg PasswordRedis="$PASSWORD_REDIS" \
+              -t admincuong/bookingbe:latest .
+
+            echo "Run new container..."
+            docker run -d \
+              --name bookingbe \
+              --restart unless-stopped \
+              -p 2223:5000 \
+              admincuong/bookingbe:latest
+
+            echo "Deploy success!"

@@ -1,0 +1,211 @@
+import { prisma } from "../lib/client.js";
+import {
+  startOfWeek,
+  startOfMonth,
+  startOfQuarter,
+  startOfYear,
+} from "date-fns";
+
+const countBookingsInRange = async (from, to) => {
+  return prisma.booking.count({
+    where: {
+      status: { not: "CANCELLED" },
+      ...(from && to
+        ? {
+            bookingDate: {
+              gte: from,
+              lte: to,
+            },
+          }
+        : {}),
+    },
+  });
+};
+
+const sumRevenueInRange = async (from, to) => {
+  return await prisma.payment.aggregate({
+    _sum: {
+      amount: true,
+    },
+    where: {
+      status: "COMPLETED",
+      ...(from && to ? { paymentDate: { gte: from, lte: to } } : {}),
+    },
+  });
+};
+
+const countCustomersInRange = async (from, to) => {
+  return prisma.customer.count({
+    where:
+      from && to
+        ? {
+            user: {
+              createdAt: { gte: from, lte: to },
+            },
+          }
+        : {},
+  });
+};
+
+const RevenueTotalMonthRepo = async (year) => {
+  const data = await prisma.payment.groupBy({
+    by: ["paymentDate"],
+    _sum: {
+      amount: true,
+    },
+    where: {
+      status: "COMPLETED",
+      paymentDate: {
+        gte: new Date(year, 0, 1),
+        lt: new Date(year + 1, 0, 1),
+      },
+    },
+  });
+  const RevenueTotalMonth = Array(12).fill(0);
+  data.forEach((item) => {
+    const month = item.paymentDate.getMonth(); // 0-11
+    RevenueTotalMonth[month] = item._sum.amount || 0;
+  });
+  return RevenueTotalMonth;
+};
+
+const CustomerCountByMonthRepo = async (year) => {
+  const results = await prisma.customer.findMany({
+    where: {
+      user: {
+        createdAt: {
+          gte: new Date(`${year}-01-01T00:00:00.000Z`),
+          lte: new Date(`${year}-12-31T23:59:59.999Z`),
+        },
+      },
+    },
+    include: {
+      user: true,
+    },
+  });
+  const monthlyCounts = Array(12).fill(0);
+
+  for (const customer of results) {
+    const month = new Date(customer.user.createdAt).getMonth(); // 0-based
+    monthlyCounts[month]++;
+  }
+
+  return monthlyCounts;
+};
+
+const BookingSouthRepoByMonth = async (year) => {
+  const data = [];
+
+  for (let month = 1; month <= 12; month++) {
+    const startDate = new Date(year, month - 1, 1, 0, 0, 0);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+
+    const bookings = await prisma.booking.groupBy({
+      by: ["bookingSource"],
+      where: {
+        status: { not: "CANCELLED" },
+        bookingSource: { in: ["WEBSITE", "DIRECT"] },
+        bookingDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    let online = 0;
+    let offline = 0;
+
+    bookings.forEach((booking) => {
+      if (booking.bookingSource === "WEBSITE") {
+        online = booking._count.id ?? 0;
+      } else if (booking.bookingSource === "DIRECT") {
+        offline = booking._count.id ?? 0;
+      }
+    });
+
+    data.push({ month: `Tháng ${month}`, online, offline });
+  }
+
+  return data;
+};
+
+// Repo
+
+const getTopRoomStatsRepo = async (period = "month") => {
+  const now = new Date();
+  let startDate;
+
+  if (period === "week") startDate = startOfWeek(now, { weekStartsOn: 1 });
+  else if (period === "month") startDate = startOfMonth(now);
+  else if (period === "quarter") startDate = startOfQuarter(now);
+  else if (period === "year") startDate = startOfYear(now);
+  else startDate = startOfMonth(now);
+
+  const bookingItems = await prisma.bookingItem.findMany({
+    where: {
+      booking: {
+        checkInDate: { gte: startDate },
+        status: { not: "CANCELLED" },
+      },
+    },
+    select: {
+      room: {
+        select: {
+          id: true,
+          roomNumber: true,
+          roomType: { select: { id: true, name: true } },
+        },
+      },
+      booking: {
+        select: { totalAmount: true },
+      },
+    },
+  });
+
+  // Top loại phòng theo doanh thu
+  const roomTypeMap = new Map();
+  for (const item of bookingItems) {
+    const { id, name } = item.room.roomType;
+    const amount = Number(item.booking.totalAmount) || 0;
+    if (!roomTypeMap.has(id))
+      roomTypeMap.set(id, { id, name, totalRevenue: 0, count: 0 });
+    roomTypeMap.get(id).totalRevenue += amount;
+    roomTypeMap.get(id).count += 1;
+  }
+
+  // Top phòng theo lượt thuê
+  const roomMap = new Map();
+  for (const item of bookingItems) {
+    const { id, roomNumber, roomType } = item.room;
+    if (!roomMap.has(id))
+      roomMap.set(id, {
+        id,
+        roomNumber,
+        roomTypeName: roomType.name,
+        count: 0,
+      });
+    roomMap.get(id).count += 1;
+  }
+
+  const topRoomTypes = [...roomTypeMap.values()]
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .slice(0, 5);
+
+  const topRooms = [...roomMap.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  return { topRoomTypes, topRooms };
+};
+export {
+  countBookingsInRange,
+  sumRevenueInRange,
+  countCustomersInRange,
+  RevenueTotalMonthRepo,
+  CustomerCountByMonthRepo,
+  BookingSouthRepoByMonth,
+  getTopRoomStatsRepo,
+};

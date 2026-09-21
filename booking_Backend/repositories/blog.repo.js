@@ -1,0 +1,159 @@
+import NotFoundError from "../errors/not-found.error.js";
+import { prisma } from "../lib/client.js";
+
+export async function getBlogRepo({ skip, limit = 10 }) {
+  const blog = await prisma.blogPost.findMany({
+    where: {
+      published: true,
+    },
+    select: {
+      id: true,
+      coverImage: true,
+      slug: true,
+      title: true,
+      summary: true,
+      publishedAt: true,
+    },
+    skip: skip,
+    take: limit,
+  });
+
+  return blog;
+}
+
+export async function totalBlogRepo() {
+  const total = await prisma.blogPost.count({
+    where: {
+      published: true,
+    },
+  });
+  return total;
+}
+export async function getBlogToSlugRepo(slug) {
+  const blog = await prisma.blogPost.findUnique({
+    where: {
+      slug,
+      published: true,
+    },
+  });
+  return blog;
+}
+
+export async function getBlogEmployeeRepo(
+  page = 1,
+  limit = 10,
+  search,
+  published,
+) {
+  const where = {
+    ...(search && {
+      OR: [{ title: { contains: search } }],
+    }),
+    ...(published !== undefined && {
+      published: published === "true",
+    }),
+  };
+
+  const [blogs, total] = await prisma.$transaction([
+    prisma.blogPost.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        employee: {
+          select: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.blogPost.count({ where }),
+  ]);
+
+  return { blogs, total };
+}
+
+export async function createBlogRepo({
+  title,
+  summary,
+  content,
+  coverImage,
+  employeeId,
+}) {
+  function generateSlug(title) {
+    if (typeof title !== "string") {
+      throw new Error("Title must be a string");
+    }
+    return title
+      .toLowerCase() // Chuyển thành chữ thường
+      .normalize("NFD") // Tách dấu (nếu có dấu tiếng Việt)
+      .replace(/[\u0300-\u036f]/g, "") // Xóa dấu
+      .replace(/[^a-z0-9\s-]/g, "") // Xóa ký tự đặc biệt
+      .trim() // Xóa khoảng trắng đầu/cuối
+      .replace(/\s+/g, "-"); // Thay khoảng trắng bằng dấu -
+  }
+
+  const createBlog = await prisma.blogPost.create({
+    data: {
+      title,
+      slug: generateSlug(title),
+      summary,
+      content,
+      coverImage,
+      employeeId,
+    },
+  });
+  return createBlog;
+}
+
+export async function findBlogUnique(id) {
+  return await prisma.blogPost.findUnique({
+    where: {
+      id,
+    },
+  });
+}
+
+export async function publishedBlogRepo(id) {
+  const findBlog = await findBlogUnique(id);
+  if (!findBlog) {
+    throw new NotFoundError("not found id");
+  }
+
+  let newpublished = !findBlog.published;
+
+  return await prisma.blogPost.update({
+    where: {
+      id,
+    },
+    data: {
+      published: newpublished,
+      publishedAt: newpublished ? new Date() : null,
+    },
+  });
+}
+
+export async function deleteBlogRepo(id) {
+  const findBlog = await findBlogUnique(id);
+  if (!findBlog) {
+    throw new NotFoundError("not found id");
+  }
+  return await prisma.blogPost.delete({
+    where: { id },
+  });
+}
+
+export async function updateBlogRepo(id, data) {
+  return await prisma.blogPost.update({
+    where: {
+      id,
+    },
+    data,
+  });
+}

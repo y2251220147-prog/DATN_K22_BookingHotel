@@ -1,0 +1,27 @@
+services:
+  booking-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_URL_API: ${NEXT_PUBLIC_URL_API}
+        NEXT_PUBLIC_PUSHER_KEY: ${NEXT_PUBLIC_PUSHER_KEY}
+        NEXT_PUBLIC_GGSHEETID: ${NEXT_PUBLIC_GGSHEETID}
+        NEXT_PUBLIC_API_GGSHEET: ${NEXT_PUBLIC_API_GGSHEET}
+
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_URL_API: ${NEXT_PUBLIC_URL_API}
+      NEXT_PUBLIC_PUSHER_KEY: ${NEXT_PUBLIC_PUSHER_KEY}
+      UPLOADTHING_TOKEN: ${UPLOADTHING_TOKEN}
+    env_file:
+      - .env
+    restart: unless-stopped
+
+    networks:
+      - booking-frontend-network
+
+networks:
+  booking-frontend-network:
+    driver: bridge

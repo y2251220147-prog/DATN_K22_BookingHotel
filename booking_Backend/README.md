@@ -1,0 +1,287 @@
+# booking_Backend
+
+Backend API cho hệ thống đặt phòng khách sạn, xây dựng bằng **Node.js + Express.js + Prisma + MySQL**.
+
+---
+
+## Mục lục
+
+- [Tính năng](#tính-năng)
+- [Tech Stack](#tech-stack)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
+- [Cài đặt](#cài-đặt)
+- [Biến môi trường](#biến-môi-trường)
+- [Scripts](#scripts)
+- [API Routes](#api-routes)
+- [Database Schema](#database-schema)
+- [Xác thực](#xác-thực)
+
+---
+
+## Tính năng
+
+- Đăng ký / Đăng nhập bằng email, Google OAuth, nhận diện khuôn mặt
+- Quản lý phòng, loại phòng, tiện nghi, giá theo mùa
+- Đặt phòng (khách hàng & nhân viên), xác nhận, hủy phòng
+- Thanh toán đa phương thức: tiền mặt, chuyển khoản, QR Code (PayOS)
+- AI chat assistant hỗ trợ tư vấn đặt phòng (LangChain + OpenAI + Google Generative AI)
+- Thống kê doanh thu, xu hướng khách hàng, phòng hiệu quả nhất
+- Thông báo realtime qua Pusher
+- Quản lý nhân viên, vai trò (RBAC), blog nội bộ
+- Ghi audit log toàn bộ hành động trong hệ thống
+- Gửi email xác nhận đặt phòng qua Nodemailer
+- Lưu trữ ảnh phòng trên Cloudinary
+
+---
+
+## Tech Stack
+
+| Thành phần      | Công nghệ                                 |
+| --------------- | ----------------------------------------- |
+| Runtime         | Node.js (ES Modules)                      |
+| Framework       | Express.js 5                              |
+| ORM             | Prisma 6                                  |
+| Database        | MySQL (Aiven Cloud)                       |
+| Cache / Session | Redis (Upstash + ioredis)                 |
+| Xác thực        | JWT, Passport.js (Google OAuth), Bcryptjs |
+| Thanh toán      | PayOS                                     |
+| AI              | LangChain, OpenAI, Google Generative AI   |
+| Realtime        | Socket.io, Pusher                         |
+| Lưu trữ file    | Cloudinary                                |
+| Email           | Nodemailer                                |
+| Validation      | Zod                                       |
+| Job scheduling  | node-cron                                 |
+
+---
+
+## Cấu trúc thư mục
+
+```
+booking_Backend/
+├── api/              # Định nghĩa routes (Express Router)
+├── controller/       # Xử lý request/response
+├── services/         # Business logic
+├── repositories/     # Truy vấn database qua Prisma
+├── schemas/          # Schema validation (Zod)
+├── lib/              # Tiện ích: auth, mailer, passport, AI...
+├── helper/           # Hàm tiện ích
+├── errors/           # Custom error classes
+├── enum/             # Enumerations
+├── prisma/           # Prisma schema & migrations
+├── server.js         # Entry point
+└── .env              # Biến môi trường
+```
+
+---
+
+## Cài đặt
+
+```bash
+# Clone repo
+git clone <repo-url>
+cd booking_Backend
+
+# Cài dependencies
+npm install
+
+# Tạo Prisma client
+npm run build
+
+# Khởi động dev server
+npm run server
+```
+
+> **Yêu cầu:** Node.js >= 18, MySQL đang chạy, Redis đang chạy.
+
+---
+
+## Biến môi trường
+
+Tạo file `.env` tại thư mục gốc với các biến sau:
+
+```env
+# Database
+DATABASE_URL=mysql://user:password@host:port/dbname
+
+# JWT
+JWT_SECRET=your_jwt_secret
+
+# Google OAuth
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_CALLBACK_URL=
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+# PayOS
+PAYOS_CLIENT_ID=
+PAYOS_API_KEY=
+PAYOS_CHECKSUM_KEY=
+
+# Nodemailer
+MAIL_USER=
+MAIL_PASS=
+
+# Redis
+REDIS_URL=
+
+# Pusher
+PUSHER_APP_ID=
+PUSHER_KEY=
+PUSHER_SECRET=
+PUSHER_CLUSTER=
+
+# OpenAI
+OPENAI_API_KEY=
+
+# Google AI
+GOOGLE_API_KEY=
+
+# App
+PORT=3000
+CLIENT_URL=http://localhost:3000
+```
+
+---
+
+## Scripts
+
+```bash
+npm start          # Chạy production
+npm run server     # Chạy development (nodemon)
+npm run build      # Generate Prisma client
+```
+
+---
+
+## API Routes
+
+Base URL: `/api`
+
+### Auth (`/api/auth`)
+
+| Method | Endpoint               | Mô tả                    | Auth     |
+| ------ | ---------------------- | ------------------------ | -------- |
+| POST   | `/signUp`              | Đăng ký tài khoản        | —        |
+| POST   | `/login`               | Đăng nhập email/mật khẩu | —        |
+| POST   | `/login/face`          | Đăng nhập khuôn mặt      | —        |
+| POST   | `/forgot-password`     | Quên mật khẩu            | —        |
+| POST   | `/reset-password`      | Đặt lại mật khẩu         | —        |
+| POST   | `/refresh-token`       | Làm mới access token     | —        |
+| GET    | `/user`                | Thông tin user hiện tại  | Customer |
+| POST   | `/createCustomer`      | Tạo khách hàng           | Employee |
+| PUT    | `/customer/:id`        | Cập nhật khách hàng      | —        |
+| POST   | `/user/changePassword` | Đổi mật khẩu             | Customer |
+| GET    | `/logOut`              | Đăng xuất                | —        |
+| GET    | `/employee`            | Danh sách nhân viên      | Employee |
+| POST   | `/employee`            | Tạo nhân viên            | —        |
+| PUT    | `/employee/:id`        | Cập nhật nhân viên       | Employee |
+| GET    | `/google`              | Đăng nhập Google         | —        |
+| GET    | `/google/callback`     | Google OAuth callback    | —        |
+
+### Rooms (`/api/room`)
+
+| Method | Endpoint            | Mô tả                       |
+| ------ | ------------------- | --------------------------- |
+| GET    | `/`                 | Danh sách phòng (nhân viên) |
+| GET    | `/customer`         | Phòng khả dụng (khách hàng) |
+| GET    | `/calculate-price`  | Tính giá phòng theo mùa     |
+| GET    | `/:id/booked-dates` | Ngày đã đặt của phòng       |
+| POST   | `/`                 | Tạo phòng mới               |
+| PUT    | `/:id`              | Cập nhật phòng              |
+| POST   | `/images/:id`       | Thêm ảnh phòng              |
+| DELETE | `/images/:id`       | Xóa ảnh phòng               |
+
+### Bookings (`/api/booking`)
+
+| Method | Endpoint         | Mô tả                         |
+| ------ | ---------------- | ----------------------------- |
+| GET    | `/`              | Tất cả đặt phòng              |
+| GET    | `/bookingUser`   | Đặt phòng của user hiện tại   |
+| POST   | `/`              | Tạo đặt phòng (khách hàng)    |
+| POST   | `/employee`      | Tạo đặt phòng (nhân viên)     |
+| PUT    | `/:id`           | Xác nhận trạng thái đặt phòng |
+| PUT    | `/cancelled/:id` | Hủy đặt phòng                 |
+| DELETE | `/:id`           | Xóa đặt phòng                 |
+
+### Payments (`/api/payment`)
+
+| Method | Endpoint         | Mô tả                       |
+| ------ | ---------------- | --------------------------- |
+| POST   | `/`              | Tạo thanh toán (khách hàng) |
+| POST   | `/employee`      | Tạo thanh toán (nhân viên)  |
+| POST   | `/webhook/payos` | Webhook callback PayOS      |
+
+### AI Chat (`/api/chatai`)
+
+| Method | Endpoint         | Mô tả                    |
+| ------ | ---------------- | ------------------------ |
+| POST   | `/`              | Chat với AI assistant    |
+| POST   | `/generate-post` | AI tạo bài blog          |
+| POST   | `/mini-stats`    | AI tổng hợp thống kê     |
+| POST   | `/voice/parse`   | Phân tích lệnh giọng nói |
+| GET    | `/tts`           | Text-to-speech           |
+
+### Dashboard (`/api/dashboard`)
+
+| Method | Endpoint                   | Mô tả                    |
+| ------ | -------------------------- | ------------------------ |
+| GET    | `/`                        | Thống kê tổng quan       |
+| GET    | `/revenue-total-month`     | Doanh thu theo tháng     |
+| GET    | `/customer-count-by-month` | Xu hướng khách hàng      |
+| GET    | `/revenue-online-offline`  | Doanh thu online/offline |
+| GET    | `/top-rooms`               | Phòng hiệu quả nhất      |
+
+> Các route khác: `/api/amenity`, `/api/roomtype`, `/api/discount`, `/api/review`, `/api/maintenance`, `/api/role`, `/api/blog`, `/api/seasonal`
+
+---
+
+## Database Schema
+
+Các model chính trong Prisma:
+
+| Model               | Mô tả                                              |
+| ------------------- | -------------------------------------------------- |
+| `User`              | Tài khoản người dùng (CUSTOMER / EMPLOYEE / ADMIN) |
+| `Customer`          | Thông tin khách hàng                               |
+| `Employee`          | Thông tin nhân viên, phòng ban                     |
+| `Room`              | Phòng khách sạn với trạng thái, giá                |
+| `RoomType`          | Loại phòng, sức chứa, tiện nghi                    |
+| `Booking`           | Đặt phòng với trạng thái (PENDING → CHECKED_OUT)   |
+| `BookingItem`       | Từng phòng trong một đặt phòng                     |
+| `Payment`           | Thanh toán, phương thức, trạng thái                |
+| `Review`            | Đánh giá của khách sau khi checkout                |
+| `SeasonalRate`      | Hệ số giá theo mùa                                 |
+| `MaintenanceRecord` | Lịch bảo trì phòng                                 |
+| `Role`              | Vai trò nhân viên với permission JSON              |
+| `AuditLog`          | Log hành động người dùng                           |
+| `BlogPost`          | Bài viết blog của nhân viên                        |
+| `Discount`          | Mã giảm giá                                        |
+
+---
+
+## Xác thực
+
+### JWT
+
+- **Access token:** hết hạn sau 15 phút (20 phút nếu "Remember me")
+- **Refresh token:** hết hạn sau 7 ngày
+- Truyền qua header `Authorization: Bearer <token>` hoặc cookie
+
+### Google OAuth 2.0
+
+- Tích hợp Passport.js, tự động tạo tài khoản Customer khi đăng nhập lần đầu
+- Callback trả về token qua query string
+
+### Nhận diện khuôn mặt
+
+- Face descriptor lưu trong bảng `User`
+- Hỗ trợ thêm / xóa descriptor qua API
+
+### RBAC (Role-Based Access Control)
+
+- 3 loại middleware: `authCustomer`, `authEmployee`, `authAdmin`
+- Permission lưu dạng JSON trong bảng `Role`, gắn cho nhân viên qua `EmployeeRole`
