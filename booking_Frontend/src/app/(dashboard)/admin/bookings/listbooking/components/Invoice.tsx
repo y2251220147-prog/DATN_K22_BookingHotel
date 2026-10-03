@@ -23,7 +23,7 @@ const Invoice = ({ booking }: { booking: IBookingRecord }) => {
 
   const hotelInfo = {
     name: "Khách Sạn DAU",
-    address: "03 Quang Trung,Đà Nẵng, Việt Nam",
+    address: "Trường Đại học Kiến trúc Đà Nẵng, 566 Núi Thành, Hải Châu, Đà Nẵng, Việt Nam",
     phone: "0258 123 4567",
     email: "contact@bienxanhhotel.vn",
     logo: "/image/logo.png",

@@ -4,19 +4,19 @@ import { RunnableSequence } from "@langchain/core/runnables";
 import { GeminiLLM } from "../lib/ApiAl.js";
 import { detectIntent } from "../lib/DetectIntent.js";
 import { searchNearbyPlaces } from "../lib/googleMap.js";
+import WeatherHeader from "../lib/Weather.js";
 import {
   checkRoomAVAILABLE,
   getRoom,
   getRoomType,
 } from "../repositories/openai.repo.js";
-import WeatherHeader from "../lib/Weather.js";
 
 const llm = new GeminiLLM({ apiKey: process.env.OPENAI_API_KEY });
 
 const hotelInfo = {
   name: "DAU Hotel",
-  address: "03 Quang Trung, Hải Châu, Đà Nẵng",
-  phone: "0236.xxx.xxxx",
+  address: "Trường Đại học Kiến trúc Đà Nẵng, 566 Núi Thành, Hải Châu, Đà Nẵng",
+  phone: "0795677494",
   email: "contact@hotel.com",
   checkInTime: "14:00",
   checkOutTime: "12:00",

@@ -1,20 +1,16 @@
-import { generateBlogDraft } from "../lib/blog-draft.js";
-import axios from "axios";
+import { UpstashRedisChatMessageHistory } from "@langchain/community/stores/message/upstash_redis";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { RunnableSequence } from "@langchain/core/runnables";
-import { searchNearbyPlaces } from "../lib/googleMap.js";
-import {
-  checkRoomAVAILABLE,
-  getRoom,
-  getRoomType,
-  MiniStatsRepo,
-} from "../repositories/openai.repo.js";
-import WeatherHeader from "../lib/Weather.js";
-import { formatPrice } from "../lib/format.js";
-import { detectIntent } from "../lib/DetectIntent.js";
-import { UpstashRedisChatMessageHistory } from "@langchain/community/stores/message/upstash_redis";
+import axios from "axios";
 import { ModelAi } from "../lib/ApiKeyModel.js";
+import { detectIntent } from "../lib/DetectIntent.js";
+import WeatherHeader from "../lib/Weather.js";
+import { generateBlogDraft } from "../lib/blog-draft.js";
+import { prisma } from "../lib/client.js";
 import { getDateRange } from "../lib/dateRange.js";
+import { formatPrice } from "../lib/format.js";
+import { searchNearbyPlaces } from "../lib/googleMap.js";
+import { getTravelKnowledge } from "../lib/travelKnowledge.js";
 import {
   extractEmail,
   extractLimitFromMessage,
@@ -22,7 +18,12 @@ import {
   formatRoomTablePayload,
   safeJsonParse,
 } from "../lib/suportAi.js";
-import { prisma } from "../lib/client.js";
+import {
+  checkRoomAVAILABLE,
+  getRoom,
+  getRoomType,
+  MiniStatsRepo,
+} from "../repositories/openai.repo.js";
 
 const llm1 = new ModelAi({
   apiKey: process.env.API_KEY_AI,
@@ -32,9 +33,9 @@ const llm1 = new ModelAi({
 
 const hotelInfo = {
   name: "DAU Hotel",
-  address: "03 Quang Trung, Hải Châu, Đà Nẵng",
-  phone: "0236.xxx.xxxx",
-  email: "contact@hotel.com",
+  address: "Trường Đại học Kiến trúc Đà Nẵng, 566 Núi Thành, Hải Châu, Đà Nẵng",
+  phone: "0795677494",
+  email: "[EMAIL_ADDRESS]",
   checkInTime: "14:00",
   checkOutTime: "12:00",
   amenities: ["Hồ bơi", "Gym", "Spa", "Nhà hàng", "Bar", "Wifi miễn phí"],
@@ -128,13 +129,16 @@ export async function OpenAIService(message, sessionId) {
     let checkAvailable = null;
     let roomTypeInfo = null;
     let weatherInfo = null;
+    const travelKnowledge = getTravelKnowledge(message);
 
     if (intent === "nearby") {
       console.log("📍 Calling: searchNearbyPlaces + WeatherHeader");
-      [searchPlaces, weatherInfo] = await Promise.all([
-        searchNearbyPlaces(message),
-        WeatherHeader(),
-      ]);
+      if (!travelKnowledge) {
+        [searchPlaces, weatherInfo] = await Promise.all([
+          searchNearbyPlaces(message),
+          WeatherHeader(),
+        ]);
+      }
 
       // Lưu vào context để dùng cho câu hỏi tiếp theo
       lastContext = { searchPlaces, weatherInfo };
@@ -222,6 +226,9 @@ Khi trả lời khách, hãy tuân theo các quy tắc sau:
 
     // 5️⃣ TẠO PROMPT ĐỘNG DỰA TRÊN DỮ LIỆU CÓ
     let contextData = `Hôm nay là ${new Date().toLocaleDateString("vi-VN")}.`;
+    if (travelKnowledge) {
+      contextData += `\n\n=== CẨM NANG DU LỊCH ĐÀ NẴNG ===\n${travelKnowledge}`;
+    }
 
     // ===== THÊM THÔNG TIN PHÒNG (NẾU CÓ) =====
     if (checkAvailable) {
@@ -292,6 +299,8 @@ Khi trả lời khách, hãy tuân theo các quy tắc sau:
 
 QUAN TRỌNG: 
 - Chỉ dùng thông tin từ dữ liệu trên. Không bịa thêm.
+- Khi tư vấn du lịch hoặc ẩm thực, phải trả lời trực tiếp; luôn liệt kê tên địa điểm/quán, địa chỉ và link Google Maps nếu dữ liệu có sẵn. Không được từ chối chỉ vì câu hỏi không phải đặt phòng.
+- Nếu dữ liệu có ghi chú cần kiểm tra trước khi đi, hãy nói rõ đó là thông tin tham khảo và khuyến nghị khách xác nhận giờ mở cửa/giá.
 - Nếu khách hỏi chi tiết về một phòng/địa điểm cụ thể, hãy trả lời dựa trên dữ liệu đã có.
 - Nếu khách hỏi tiếp về chủ đề trước, hãy dựa vào ngữ cảnh cuộc hội thoại.
 

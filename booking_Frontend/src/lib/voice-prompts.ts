@@ -2,8 +2,9 @@
 
 export const HOTEL_INFO = {
   name: "DAU Hotel",
-  address: "03 Quang Trung, Đà Nẵng",
-  phone: "0236 3650 403",
+  address: "Trường Đại học Kiến trúc Đà Nẵng, 566 Núi Thành, Hải Châu, Đà Nẵng",
+  phone: "0795677494",
+  email: "[EMAIL_ADDRESS]",
   amenities:
     "Phòng hội thảo hiện đại, phòng thực hành sinh viên, wifi miễn phí tốc độ cao",
   timing: "Nhận phòng: 14:00, Trả phòng: 12:00  Nhận phòng sớm theo yêu cầu",
